@@ -306,7 +306,7 @@ body.pdf-mode .grid2{grid-template-columns:1fr 1fr}
       <div class="field"><label for="setServer">Server IP (e.g. 192.168.1.9)</label><input id="setServer" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="decimal" value="192.168.1.9"></div>
       <div class="field"><label for="setTeam">MQTT username (e.g. student01)</label><input id="setTeam" autocomplete="off" autocapitalize="off" spellcheck="false" value="student01"></div>
       <div class="field"><label for="setMqttPass">MQTT password</label><input id="setMqttPass" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="from your instructor"></div>
-      <div class="field"><label for="setNr">Node-RED instance (port 20NN)</label><input id="setNr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. student01"></div>
+      <div class="field"><label for="setNr">Node-RED port (student25 → 2025)</label><input id="setNr" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="numeric" placeholder="e.g. 2001"></div>
       <div class="field"><label for="setSsid">Classroom WiFi name</label><input id="setSsid" autocomplete="off" spellcheck="false" value="ClassroomWiFi"></div>
       <div class="field"><label for="setPass">Classroom WiFi password</label><input id="setPass" autocomplete="off" spellcheck="false" value="password123"></div>
     </div>
@@ -910,7 +910,7 @@ body.pdf-mode .grid2{grid-template-columns:1fr 1fr}
   <article class="lab" data-lab="nr-install" data-mod="nodered">
     <div class="lab-head"><span class="labno">SETUP</span><h3>Open your Node-RED and install Dashboard 2.0</h3><span class="time">≈ 10 min</span></div>
     <div class="lab-body">
-      <p class="goal"><b>Nothing to install on your laptop.</b> Every student has their own Node-RED on the classroom server, one port each: student01 → port 2001 … student30 → port 2030. The links on this page use the <b>server IP</b> and <b>Node-RED instance</b> from the Start page. Your laptop or phone must be on the classroom WiFi.</p>
+      <p class="goal"><b>Nothing to install on your laptop.</b> Every student has their own Node-RED on the classroom server, one port each: student01 → port 2001 … student30 → port 2030. The links on this page use the <b>server IP</b> and <b>Node-RED port</b> from the Start page (student25 → port 2025). Your laptop or phone must be on the classroom WiFi.</p>
       <ol class="steps">
         <li><div><p>Open your Node-RED editor. If it asks you to sign in, use your <b>Node-RED username and password</b> from your instructor. These are <b>not</b> your MQTT login.</p><p class="mono" style="font-size:15px"><a data-href-tpl="http://{{SERVER}}:{{NRPORT}}/" href="http://192.168.1.9:2001/" target="_blank" rel="noopener">http://<span data-var="SERVER">192.168.1.9</span>:<span data-var="NRPORT">2001</span>/</a></p></div></li>
         <li><div><p>Open the menu <b>☰</b> (top right) › <b>Manage palette</b> › <b>Install</b> tab, and search for:</p><div class="code short" data-snippet="nr_palette"></div></div></li>
@@ -1166,7 +1166,13 @@ const PASS_PLACEHOLDER = 'YOUR_MQTT_PASSWORD';
 let settings = (() => { const old = store.get('settings', {}); const s = Object.assign({}, DEFAULTS, store.get('settings2', {WIFI_SSID: old.WIFI_SSID || DEFAULTS.WIFI_SSID, WIFI_PASS: old.WIFI_PASS || DEFAULTS.WIFI_PASS})); delete s.BROKER; return s; })();
 const fieldMap = {setServer:'SERVER', setTeam:'TEAM', setSsid:'WIFI_SSID', setPass:'WIFI_PASS', setMqttPass:'MQTT_PASS', setNr:'NR'};
 const serverIp = () => String(settings.SERVER || '').trim().replace(/[^A-Za-z0-9.\-]/g, '') || DEFAULTS.SERVER;
-const nrPort = () => { const n = parseInt((nrName().match(/(\d+)$/) || [])[1], 10); return 2000 + (n > 0 && n < 100 ? n : 1); };
+const nrPort = () => {
+  const raw = String(settings.NR || '').trim();
+  if (/^\d{3,5}$/.test(raw) && +raw >= 1 && +raw <= 65535) return +raw;          // typed the port, e.g. 2025
+  const m = raw.match(/(\d{1,2})$/) || (cleanId(settings.TEAM) || '').match(/(\d{1,2})$/); // student25 or 25, else MQTT username
+  const n = m ? parseInt(m[1], 10) : 1;
+  return 2000 + (n > 0 ? n : 1);
+};
 const otherStudent = () => { const t = cleanId(settings.TEAM) || DEFAULTS.TEAM; return t === 'student02' ? 'student03' : 'student02'; };
 const nrName = () => cleanId(settings.NR) || cleanId(settings.TEAM) || DEFAULTS.TEAM;
 const cleanId = s => (s||'').replace(/[^A-Za-z0-9._-]/g,'');
@@ -1210,7 +1216,7 @@ function refreshVars(){
     if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(serverIp()) && !/^[a-z0-9.-]+$/i.test(serverIp())) { msg = 'Server IP looks wrong. It is four numbers with dots, e.g. 192.168.1.9.'; cls += ' warn-text'; }
     else if (!/^student\d{2,}$/.test(team)) { msg = 'Usernames look like student07 (lowercase, two digits). Check for typos.'; cls += ' warn-text'; }
     else if (!mpass) { msg = 'Type your MQTT password. Until you do, the code shows ' + PASS_PLACEHOLDER + '.'; cls += ' warn-text'; }
-    else if (settings.NR && !/^student\d{2,}$/.test(nrName())) { msg = 'Node-RED instance should look like student07 (from your Node-RED address).'; cls += ' warn-text'; }
+    else if (settings.NR && !/^(\d{3,5}|student\d{1,2}|\d{1,2})$/.test(String(settings.NR).trim())) { msg = 'Node-RED port should be a number like 2025 (student25 → 2025).'; cls += ' warn-text'; }
     else msg = 'Server ' + serverIp() + ' and MQTT login ' + team + ' are filled into every sketch, command and flow. Your Node-RED: http://' + serverIp() + ':' + nrPort() + '/';
     note.className = cls; note.textContent = msg;
   }
